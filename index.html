@@ -3,13 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>房貸試算工具 v3.2</title>
+  <title>房貸試算工具 v3.3</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <style>
+    :root { color-scheme: light only; }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans TC', sans-serif;
-      background: #f5f4f0; color: #1a1a18; min-height: 100vh; padding: 2rem 1rem;
+      background: #f5f4f0 !important; color: #1a1a18 !important; min-height: 100vh; padding: 2rem 1rem;
     }
     .container { max-width: 1100px; margin: 0 auto; }
     h1 { font-size: 22px; font-weight: 500; margin-bottom: 0.25rem; color: #1a1a18; }
@@ -153,7 +154,7 @@
 
   </div>
 
-  <p class="footer-note">寬限期間兩種方式均僅付利息，單位：新台幣｜v3.2</p>
+  <p class="footer-note">寬限期間兩種方式均僅付利息，單位：新台幣｜v3.3</p>
 </div>
 
 <script>
@@ -203,14 +204,15 @@ function calcPP(principal, annualRate, totalYears, graceYears) {
   const fixedPrin = amortMonths > 0 ? principal / amortMonths : 0;
   for (let mo = 1; mo <= graceMonths; mo++) {
     const intPart = balance * r;
-    schedule.push({ principal: 0, interest: intPart, balance, monthly: intPart });
+    schedule.push({ principal: 0, interest: intPart, balance, monthly: intPart, grace: true });
   }
   for (let mo = graceMonths + 1; mo <= totalMonths; mo++) {
     const intPart = balance * r;
     balance = Math.max(0, balance - fixedPrin);
-    schedule.push({ principal: fixedPrin, interest: intPart, balance, monthly: fixedPrin + intPart });
+    schedule.push({ principal: fixedPrin, interest: intPart, balance, monthly: fixedPrin + intPart, grace: false });
   }
-  const firstMonthly = fixedPrin + principal * r
+  const afterGrace = schedule.find(m => !m.grace);
+  const firstMonthly = afterGrace ? afterGrace.monthly : (fixedPrin + principal * r);
   return { schedule, firstMonthly, graceMonthly: graceYears > 0 ? principal * r : 0, fixedPrin };
 }
 
@@ -313,7 +315,7 @@ function buildPerLoanCards(containerId, results, type) {
     c.style.cssText = 'display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;padding:8px 10px;border:0.5px solid rgba(0,0,0,0.1);border-radius:8px;border-left:3px solid '+color+';background:#fff;';
     c.innerHTML = `
       <div><p style="font-size:10px;color:#888780;margin:0 0 2px;">寬限期月付</p><p style="font-size:13px;font-weight:500;margin:0;color:${loan.grace===0?'#b4b2a9':'#1a1a18'};">${loan.grace===0?'$0':fmtM(loan.graceMonthly)}</p></div>
-      <div><p style="font-size:10px;color:#888780;margin:0 0 2px;">${type==='pi'?'還款期月付':'首月還款'}</p><p style="font-size:13px;font-weight:500;margin:0;color:#1a1a18;">${type==='pi'?fmtM(loan.amortMonthly):fmtM(loan.firstMonthly)}</p></div>
+      <div><p style="font-size:10px;color:#888780;margin:0 0 2px;">${type==='pi'?'還款期月付':'寬限後首月還款'}</p><p style="font-size:13px;font-weight:500;margin:0;color:#1a1a18;">${type==='pi'?fmtM(loan.amortMonthly):fmtM(loan.firstMonthly)}</p></div>
       <div><p style="font-size:10px;color:#888780;margin:0 0 2px;">總利息</p><p style="font-size:13px;font-weight:500;margin:0;color:#1a1a18;">${fmtWan(loan.totalInterest)}</p></div>
       <div><p style="font-size:10px;color:#888780;margin:0 0 2px;">${loan.years}年／寬${loan.grace}年</p><p style="font-size:13px;font-weight:500;margin:0;color:#1a1a18;">${loan.principalWan}萬</p></div>`;
     container.appendChild(c);
@@ -327,7 +329,7 @@ function buildPerLoanCards(containerId, results, type) {
   thead.innerHTML = `<tr style="background:#f5f4f0;">
     <th style="font-size:10px;font-weight:500;color:#888780;padding:6px 8px;text-align:left;border-bottom:0.5px solid rgba(0,0,0,0.1);">筆</th>
     <th style="font-size:10px;font-weight:500;color:#888780;padding:6px 8px;text-align:right;border-bottom:0.5px solid rgba(0,0,0,0.1);">寬限月付</th>
-    <th style="font-size:10px;font-weight:500;color:#888780;padding:6px 8px;text-align:right;border-bottom:0.5px solid rgba(0,0,0,0.1);">${type==='pi'?'還款期月付':'首月還款'}</th>
+    <th style="font-size:10px;font-weight:500;color:#888780;padding:6px 8px;text-align:right;border-bottom:0.5px solid rgba(0,0,0,0.1);">${type==='pi'?'還款期月付':'寬限後首月還款'}</th>
     <th style="font-size:10px;font-weight:500;color:#888780;padding:6px 8px;text-align:right;border-bottom:0.5px solid rgba(0,0,0,0.1);">總利息</th>
     <th style="font-size:10px;font-weight:500;color:#888780;padding:6px 8px;text-align:right;border-bottom:0.5px solid rgba(0,0,0,0.1);">年限／寬限</th>
   </tr>`;
@@ -404,7 +406,7 @@ function buildYearlyTable(results, maxYears, tableId) {
   for (let i=0;i<n;i++) {
     const c=COLORS[i%COLORS.length];
     grand+=results[i].totalPaid;
-    totalCols+=`<td style="padding:7px 6px;text-align:right;font-weight:500;color:#1a1a18;border-top:0.5px solid rgba(0,0,0,0.15);border-left:2px solid ${c};white-space:nowrap;">${fmtN(results[i].principal)}</td>
+    totalCols+=`<td style="padding:7px 6px;text-align:right;font-size:10px;font-weight:500;color:#888780;border-top:0.5px solid rgba(0,0,0,0.15);border-left:2px solid ${c};white-space:nowrap;">本金</td>
                 <td style="padding:7px 6px;text-align:right;font-weight:500;color:#d85a30;border-top:0.5px solid rgba(0,0,0,0.15);white-space:nowrap;">${fmtN(results[i].totalInterest)}</td>
                 <td style="padding:7px 6px;border-top:0.5px solid rgba(0,0,0,0.15);"></td>`;
   }
