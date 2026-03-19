@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>房貸試算工具</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans TC', sans-serif;
+      background: #f5f4f0;
+      color: #1a1a18;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+    .container { max-width: 820px; margin: 0 auto; }
+    h1 { font-size: 22px; font-weight: 500; margin-bottom: 0.25rem; color: #1a1a18; }
+    .subtitle { font-size: 14px; color: #888780; margin-bottom: 1.75rem; }
+
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .section-label { font-size: 13px; font-weight: 500; color: #1a1a18; }
+
+    button {
+      font-family: inherit; font-size: 12px; padding: 5px 14px;
+      border-radius: 8px; border: 0.5px solid rgba(0,0,0,0.25);
+      background: transparent; cursor: pointer; color: #1a1a18; transition: background 0.15s;
+    }
+    button:hover { background: rgba(0,0,0,0.06); }
+    button:active { transform: scale(0.98); }
+
+    #loanRows { display: flex; flex-direction: column; gap: 10px; margin-bottom: 1.25rem; }
+
+    .loan-card {
+      background: #fff; border-radius: 12px;
+      border: 0.5px solid rgba(0,0,0,0.1); padding: 14px;
+    }
+    .loan-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .loan-title { font-size: 13px; font-weight: 500; color: #1a1a18; }
+    .loan-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    label { font-size: 12px; color: #888780; display: block; margin-bottom: 5px; }
+    .range-val { font-size: 13px; font-weight: 500; color: #1a1a18; }
+
+    input[type="number"] {
+      font-family: inherit; width: 100%; font-size: 13px;
+      padding: 6px 10px; border-radius: 8px;
+      border: 0.5px solid rgba(0,0,0,0.2);
+      background: #f5f4f0; color: #1a1a18; outline: none;
+    }
+    input[type="number"]:focus { border-color: rgba(0,0,0,0.4); background: #fff; }
+    input[type="range"] { width: 100%; accent-color: #3266ad; cursor: pointer; }
+
+    .summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-bottom: 1.25rem; }
+    .metric-card { background: #fff; border-radius: 8px; border: 0.5px solid rgba(0,0,0,0.08); padding: 0.9rem; }
+    .metric-label { font-size: 12px; color: #888780; margin-bottom: 4px; }
+    .metric-value { font-size: 20px; font-weight: 500; color: #1a1a18; }
+
+    #perLoanCards { display: flex; flex-direction: column; gap: 8px; margin-bottom: 1.25rem; }
+    .per-loan-card {
+      display: grid; grid-template-columns: repeat(4, minmax(0,1fr));
+      gap: 8px; padding: 10px 12px;
+      border: 0.5px solid rgba(0,0,0,0.1); border-radius: 10px; background: #fff;
+    }
+    .per-loan-item-label { font-size: 11px; color: #888780; margin-bottom: 3px; }
+    .per-loan-item-value { font-size: 14px; font-weight: 500; color: #1a1a18; }
+
+    .legend { display: flex; gap: 16px; margin-bottom: 10px; font-size: 12px; color: #888780; }
+    .legend span { display: flex; align-items: center; gap: 5px; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+    .chart-wrap { position: relative; width: 100%; height: 300px; margin-bottom: 2rem; }
+
+    .yearly-title { font-size: 13px; font-weight: 500; color: #1a1a18; margin-bottom: 10px; }
+    #yearlyTable { overflow-x: auto; border-radius: 10px; border: 0.5px solid rgba(0,0,0,0.1); background: #fff; }
+    #yearlyTable table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    #yearlyTable th, #yearlyTable td { white-space: nowrap; }
+
+    .footer-note { font-size: 12px; color: #aaa; margin-top: 1rem; }
+
+    @media (max-width: 520px) {
+      .loan-grid { grid-template-columns: 1fr; }
+      .summary-grid { grid-template-columns: 1fr 1fr; }
+      .per-loan-card { grid-template-columns: 1fr 1fr; }
+      .metric-value { font-size: 17px; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>房貸試算工具</h1>
+  <p class="subtitle">本息均攤法，支援多筆貸款、寬限期設定</p>
+
+  <div class="section-header">
+    <span class="section-label">分筆貸款設定</span>
+    <button onclick="addLoan()">＋ 新增</button>
+  </div>
+  <div id="loanRows"></div>
+
+  <div class="summary-grid">
+    <div class="metric-card">
+      <p class="metric-label" id="monthlyLabel">每月總還款</p>
+      <p class="metric-value" id="monthly">$0</p>
+    </div>
+    <div class="metric-card">
+      <p class="metric-label">總利息支出</p>
+      <p class="metric-value" id="totalInterest">$0</p>
+    </div>
+    <div class="metric-card">
+      <p class="metric-label">還款總額</p>
+      <p class="metric-value" id="totalPaid">$0</p>
+    </div>
+  </div>
+
+  <div id="perLoanCards"></div>
+
+  <div class="legend">
+    <span><span class="legend-dot" style="background:#3266ad"></span>本金</span>
+    <span><span class="legend-dot" style="background:#d85a30"></span>利息</span>
+    <span><span class="legend-dot" style="background:#b4b2a9"></span>剩餘貸款</span>
+  </div>
+
+  <div class="chart-wrap">
+    <canvas id="chart"></canvas>
+  </div>
+
+  <p class="yearly-title">每年還款明細</p>
+  <div id="yearlyTable"></div>
+
+  <p class="footer-note">本息均攤法，寬限期間僅付利息，單位：新台幣</p>
+</div>
+
+<script>
+let myChart = null;
+let loans = [];
+let nextId = 1;
+const COLORS = ['#3266ad','#d85a30','#1d9e75','#7f77dd','#ba7517','#d4537e'];
+
+function fmtWan(n) {
+  if (n >= 1e8) return (n/1e8).toFixed(1)+'億';
+  if (n >= 1e4) return Math.round(n/1e4)+'萬';
+  return Math.round(n).toLocaleString();
+}
+function fmtN(n) { return Math.round(n).toLocaleString(); }
+
+function calcSchedule(principal, annualRate, totalYears, graceYears) {
+  const r = annualRate / 100 / 12;
+  const graceMonths = graceYears * 12;
+  const totalMonths = totalYears * 12;
+  const amortMonths = totalMonths - graceMonths;
+  const schedule = [];
+  let balance = principal;
+
+  for (let mo = 1; mo <= graceMonths; mo++) {
+    const intPart = balance * r;
+    schedule.push({ principal: 0, interest: intPart, balance, monthly: intPart, grace: true });
+  }
+
+  const M = (r === 0 || amortMonths === 0)
+    ? (amortMonths > 0 ? balance / amortMonths : 0)
+    : balance * r * Math.pow(1+r, amortMonths) / (Math.pow(1+r, amortMonths) - 1);
+
+  for (let mo = graceMonths + 1; mo <= totalMonths; mo++) {
+    const intPart = balance * r;
+    const prinPart = M - intPart;
+    balance = Math.max(0, balance - prinPart);
+    schedule.push({ principal: prinPart, interest: intPart, balance, monthly: M, grace: false });
+  }
+
+  return { schedule, amortMonthly: M, graceMonthly: graceYears > 0 ? principal * r : 0 };
+}
+
+function addLoan(principalWan=500, rate=2.5, years=20, grace=0) {
+  const id = nextId++;
+  loans.push({ id, principalWan, rate, years, grace });
+  renderRows();
+  update();
+}
+
+function removeLoan(id) {
+  loans = loans.filter(l => l.id !== id);
+  renderRows();
+  update();
+}
+
+function renderRows() {
+  const container = document.getElementById('loanRows');
+  container.innerHTML = '';
+  loans.forEach((loan, idx) => {
+    const color = COLORS[idx % COLORS.length];
+    const canRemove = loans.length > 1;
+    const maxGrace = Math.min(5, loan.years - 1);
+    loans[idx].grace = Math.min(loan.grace, maxGrace);
+    const safeGrace = loans[idx].grace;
+
+    const div = document.createElement('div');
+    div.className = 'loan-card';
+    div.style.borderLeft = '3px solid ' + color;
+    div.innerHTML = `
+      <div class="loan-card-header">
+        <span class="loan-title">筆 ${idx+1}</span>
+        ${canRemove ? `<button onclick="removeLoan(${loan.id})" style="margin-left:auto;font-size:11px;padding:2px 10px;">移除</button>` : ''}
+      </div>
+      <div class="loan-grid">
+        <div>
+          <label>貸款金額（萬元）</label>
+          <input type="number" value="${loan.principalWan}" min="1" step="1"
+            oninput="loans[${idx}].principalWan=Math.max(0,parseFloat(this.value)||0);update()">
+        </div>
+        <div>
+          <label>年利率（%）</label>
+          <input type="number" value="${loan.rate}" min="0.01" max="30" step="0.01"
+            oninput="loans[${idx}].rate=Math.max(0.01,Math.min(30,parseFloat(this.value)||0.01));update()">
+        </div>
+        <div>
+          <label>貸款年限：<span id="yL${loan.id}" class="range-val">${loan.years} 年</span></label>
+          <input type="range" min="1" max="40" step="1" value="${loan.years}"
+            oninput="loans[${idx}].years=parseInt(this.value);var mg=Math.min(5,loans[${idx}].years-1);if(loans[${idx}].grace>mg)loans[${idx}].grace=mg;document.getElementById('yL${loan.id}').textContent=this.value+' 年';renderRows();update()">
+        </div>
+        <div>
+          <label>寬限期：<span id="gL${loan.id}" class="range-val">${safeGrace} 年</span></label>
+          <input type="range" min="0" max="${maxGrace}" step="1" value="${safeGrace}"
+            oninput="loans[${idx}].grace=parseInt(this.value);document.getElementById('gL${loan.id}').textContent=this.value+' 年';update()">
+        </div>
+      </div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+function update() {
+  const maxYears = Math.max(...loans.map(l => l.years));
+  const maxMonths = maxYears * 12;
+  const anyGrace = loans.some(l => l.grace > 0);
+
+  let totalInterestAll = 0, totalPaidAll = 0;
+  const results = loans.map(loan => {
+    const principal = loan.principalWan * 10000;
+    const { schedule, amortMonthly, graceMonthly } = calcSchedule(principal, loan.rate, loan.years, loan.grace);
+    const totalPaid = schedule.reduce((s, m) => s + m.monthly, 0);
+    const totalInterest = schedule.reduce((s, m) => s + m.interest, 0);
+    totalInterestAll += totalInterest;
+    totalPaidAll += totalPaid;
+    return { ...loan, principal, schedule, amortMonthly, graceMonthly, totalPaid, totalInterest };
+  });
+
+  const totalAmortM = results.reduce((s, r) => s + r.amortMonthly, 0);
+  document.getElementById('monthlyLabel').textContent = anyGrace ? '每月總還款（寬限後）' : '每月總還款';
+  document.getElementById('monthly').textContent = '$' + fmtWan(totalAmortM);
+  document.getElementById('totalInterest').textContent = '$' + fmtWan(totalInterestAll);
+  document.getElementById('totalPaid').textContent = '$' + fmtWan(totalPaidAll);
+
+  const cards = document.getElementById('perLoanCards');
+  cards.innerHTML = '';
+  results.forEach((loan, idx) => {
+    const color = COLORS[idx % COLORS.length];
+    const card = document.createElement('div');
+    card.className = 'per-loan-card';
+    card.style.borderLeft = '3px solid ' + color;
+    card.innerHTML = `
+      <div>
+        <p class="per-loan-item-label">筆${idx+1} 寬限期月付</p>
+        <p class="per-loan-item-value" style="color:${loan.grace===0?'#b4b2a9':'#1a1a18'};">${loan.grace===0?'$0':'$'+fmtWan(loan.graceMonthly)}</p>
+      </div>
+      <div>
+        <p class="per-loan-item-label">還款期月付</p>
+        <p class="per-loan-item-value">$${fmtWan(loan.amortMonthly)}</p>
+      </div>
+      <div>
+        <p class="per-loan-item-label">總利息</p>
+        <p class="per-loan-item-value">$${fmtWan(loan.totalInterest)}</p>
+      </div>
+      <div>
+        <p class="per-loan-item-label">${loan.years}年／寬限${loan.grace}年</p>
+        <p class="per-loan-item-value">${loan.principalWan}萬</p>
+      </div>
+    `;
+    cards.appendChild(card);
+  });
+
+  // Chart
+  const step = Math.max(1, Math.floor(maxYears / 10));
+  const chartLabels = [], principalArr = [], interestArr = [], balanceArr = [];
+  for (let mo = 1; mo <= maxMonths; mo++) {
+    let moPrin = 0, moInt = 0, moBalance = 0;
+    results.forEach(r => {
+      const entry = r.schedule[mo - 1];
+      if (entry) { moPrin += entry.principal; moInt += entry.interest; moBalance += entry.balance; }
+    });
+    if (mo % (step * 12) === 0 || mo === maxMonths) {
+      chartLabels.push('第' + Math.round(mo/12) + '年');
+      principalArr.push(Math.round(moPrin));
+      interestArr.push(Math.round(moInt));
+      balanceArr.push(Math.round(moBalance));
+    }
+  }
+  if (myChart) myChart.destroy();
+  myChart = new Chart(document.getElementById('chart'), {
+    data: {
+      labels: chartLabels,
+      datasets: [
+        { type:'bar', label:'本金', data: principalArr, backgroundColor:'#3266ad', yAxisID:'y', order:2 },
+        { type:'bar', label:'利息', data: interestArr, backgroundColor:'#d85a30', yAxisID:'y', order:2 },
+        { type:'line', label:'剩餘貸款', data: balanceArr, borderColor:'#b4b2a9', backgroundColor:'transparent', pointRadius:3, borderWidth:2, tension:0.3, yAxisID:'y2', order:1 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display:false }, tooltip: { callbacks: { label: ctx => ' '+ctx.dataset.label+': $'+Math.round(ctx.parsed.y).toLocaleString() } } },
+      scales: {
+        x: { stacked:true, ticks:{ color:'#888780', font:{size:11} }, grid:{ color:'rgba(136,135,128,0.12)' } },
+        y: { stacked:true, position:'left', ticks:{ color:'#888780', font:{size:11}, callback: v => v>=1e4?(v/1e4)+'萬':v }, grid:{ color:'rgba(136,135,128,0.12)' } },
+        y2: { position:'right', ticks:{ color:'#888780', font:{size:11}, callback: v => v>=1e4?(v/1e4)+'萬':v }, grid:{ drawOnChartArea:false } }
+      }
+    }
+  });
+
+  // Yearly table
+  const tableDiv = document.getElementById('yearlyTable');
+  let html = `<table>
+    <thead>
+      <tr style="background:#f5f4f0;">
+        <th style="padding:8px 12px;text-align:left;font-weight:500;color:#888780;border-bottom:0.5px solid rgba(0,0,0,0.1);">年度</th>`;
+
+  results.forEach((loan, idx) => {
+    const color = COLORS[idx % COLORS.length];
+    html += `<th colspan="3" style="padding:8px 10px;text-align:center;font-weight:500;color:#888780;border-bottom:0.5px solid rgba(0,0,0,0.1);border-left:2px solid ${color};">筆${idx+1}（${loan.principalWan}萬 ${loan.rate}%）</th>`;
+  });
+  html += `
+        <th style="padding:8px 12px;text-align:right;font-weight:500;color:#888780;border-bottom:0.5px solid rgba(0,0,0,0.1);border-left:0.5px solid rgba(0,0,0,0.1);">合計月付</th>
+        <th style="padding:8px 12px;text-align:right;font-weight:500;color:#888780;border-bottom:0.5px solid rgba(0,0,0,0.1);">合計年付</th>
+      </tr>
+      <tr style="background:#f5f4f0;">
+        <th style="padding:4px 12px;border-bottom:0.5px solid rgba(0,0,0,0.1);"></th>`;
+
+  results.forEach((loan, idx) => {
+    const color = COLORS[idx % COLORS.length];
+    html += `
+      <th style="padding:4px 8px;text-align:right;font-weight:400;color:#b4b2a9;font-size:11px;border-bottom:0.5px solid rgba(0,0,0,0.1);border-left:2px solid ${color};">還本</th>
+      <th style="padding:4px 8px;text-align:right;font-weight:400;color:#b4b2a9;font-size:11px;border-bottom:0.5px solid rgba(0,0,0,0.1);">付息</th>
+      <th style="padding:4px 8px;text-align:right;font-weight:400;color:#b4b2a9;font-size:11px;border-bottom:0.5px solid rgba(0,0,0,0.1);">月付</th>`;
+  });
+  html += `<th style="border-bottom:0.5px solid rgba(0,0,0,0.1);border-left:0.5px solid rgba(0,0,0,0.1);"></th><th style="border-bottom:0.5px solid rgba(0,0,0,0.1);"></th></tr>
+    </thead><tbody>`;
+
+  for (let yr = 1; yr <= maxYears; yr++) {
+    const moStart = (yr - 1) * 12;
+    const moEnd = yr * 12;
+    const bg = yr % 2 === 0 ? 'background:#f9f8f6;' : '';
+    let rowCols = '';
+    let totalMonthly = 0, totalYearPaid = 0, anyActive = false;
+
+    results.forEach((loan, idx) => {
+      const color = COLORS[idx % COLORS.length];
+      let yearPrin = 0, yearInt = 0, yearMonthlySum = 0, activeMonths = 0;
+      for (let mo = moStart; mo < moEnd; mo++) {
+        const entry = loan.schedule[mo];
+        if (entry) { yearPrin += entry.principal; yearInt += entry.interest; yearMonthlySum += entry.monthly; activeMonths++; anyActive = true; }
+      }
+      const avgMonthly = activeMonths > 0 ? yearMonthlySum / activeMonths : 0;
+      if (activeMonths > 0) { totalMonthly += avgMonthly; totalYearPaid += yearPrin + yearInt; }
+
+      if (activeMonths > 0) {
+        rowCols += `
+          <td style="padding:6px 8px;text-align:right;color:#1a1a18;border-left:2px solid ${color};">${fmtN(yearPrin)}</td>
+          <td style="padding:6px 8px;text-align:right;color:#d85a30;">${fmtN(yearInt)}</td>
+          <td style="padding:6px 8px;text-align:right;font-weight:500;color:#1a1a18;">${fmtN(avgMonthly)}</td>`;
+      } else {
+        rowCols += `
+          <td style="padding:6px 8px;text-align:right;color:#d3d1c7;border-left:2px solid ${color};">—</td>
+          <td style="padding:6px 8px;text-align:right;color:#d3d1c7;">—</td>
+          <td style="padding:6px 8px;text-align:right;color:#d3d1c7;">—</td>`;
+      }
+    });
+
+    if (!anyActive) continue;
+
+    html += `<tr style="${bg}">
+      <td style="padding:6px 12px;color:#888780;">第 ${yr} 年</td>
+      ${rowCols}
+      <td style="padding:6px 12px;text-align:right;font-weight:500;color:#1a1a18;border-left:0.5px solid rgba(0,0,0,0.08);">${fmtN(totalMonthly)}</td>
+      <td style="padding:6px 12px;text-align:right;font-weight:500;color:#1a1a18;">${fmtN(totalYearPaid)}</td>
+    </tr>`;
+  }
+
+  let totalRowCols = '';
+  let grandTotal = 0;
+  results.forEach((loan, idx) => {
+    const color = COLORS[idx % COLORS.length];
+    grandTotal += loan.totalPaid;
+    totalRowCols += `
+      <td style="padding:8px 8px;text-align:right;font-weight:500;color:#1a1a18;border-top:0.5px solid rgba(0,0,0,0.15);border-left:2px solid ${color};">${fmtN(loan.principal)}</td>
+      <td style="padding:8px 8px;text-align:right;font-weight:500;color:#d85a30;border-top:0.5px solid rgba(0,0,0,0.15);">${fmtN(loan.totalInterest)}</td>
+      <td style="padding:8px 8px;border-top:0.5px solid rgba(0,0,0,0.15);"></td>`;
+  });
+
+  html += `<tr style="background:#f5f4f0;">
+    <td style="padding:8px 12px;font-weight:500;color:#1a1a18;border-top:0.5px solid rgba(0,0,0,0.15);">總計</td>
+    ${totalRowCols}
+    <td style="padding:8px 12px;border-top:0.5px solid rgba(0,0,0,0.15);border-left:0.5px solid rgba(0,0,0,0.08);"></td>
+    <td style="padding:8px 12px;text-align:right;font-weight:500;color:#1a1a18;border-top:0.5px solid rgba(0,0,0,0.15);">${fmtN(grandTotal)}</td>
+  </tr>`;
+
+  html += '</tbody></table>';
+  tableDiv.innerHTML = html;
+}
+
+addLoan(500, 2.5, 20, 0);
+</script>
+</body>
+</html>
