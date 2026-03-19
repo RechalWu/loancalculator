@@ -404,7 +404,7 @@ function buildYearlyTable(results, maxYears, tableId) {
   for (let i=0;i<n;i++) {
     const c=COLORS[i%COLORS.length];
     grand+=results[i].totalPaid;
-    totalCols+=`<td style="padding:7px 6px;text-align:right;font-size:10px;font-weight:500;color:#888780;border-top:0.5px solid rgba(0,0,0,0.15);border-left:2px solid ${c};white-space:nowrap;">本金</td>
+    totalCols+=`<td style="padding:7px 6px;text-align:right;font-weight:500;color:#1a1a18;border-top:0.5px solid rgba(0,0,0,0.15);border-left:2px solid ${c};white-space:nowrap;">${fmtN(results[i].principal)}</td>
                 <td style="padding:7px 6px;text-align:right;font-weight:500;color:#d85a30;border-top:0.5px solid rgba(0,0,0,0.15);white-space:nowrap;">${fmtN(results[i].totalInterest)}</td>
                 <td style="padding:7px 6px;border-top:0.5px solid rgba(0,0,0,0.15);"></td>`;
   }
