@@ -210,7 +210,7 @@ function calcPP(principal, annualRate, totalYears, graceYears) {
     balance = Math.max(0, balance - fixedPrin);
     schedule.push({ principal: fixedPrin, interest: intPart, balance, monthly: fixedPrin + intPart });
   }
-  const firstMonthly = graceYears > 0 ? principal * r : (fixedPrin + principal * r);
+  const firstMonthly = fixedPrin + principal * r
   return { schedule, firstMonthly, graceMonthly: graceYears > 0 ? principal * r : 0, fixedPrin };
 }
 
